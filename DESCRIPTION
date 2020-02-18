@@ -1,8 +1,12 @@
 Package: Disequilibrium
 Type: Package
 Title: Disequilibrium Models
-Version: 1.0
-Author: Nate Latshaw [aut, cre], Michael Guggisberg [aut]
+Version: 1.1
+Authors@R: c(person("Nate", "Latshaw", role = c("cre", "aut"),
+    email = "dcms2015@gmail.com"),
+    person("Michael", "Guggisberg", role = "aut",
+    email = "mikeguggis@gmail.com"),
+    person("Institute for Defense Analyses", role = "cph"))
 Maintainer: Nate Latshaw <dcms2015@gmail.com>
 Description: Estimate, summarize, and perform predictions with the market in 
   disequilibrium model, as found in Gourieroux, C. (2000) <doi:10.1017/CBO9780511805608> and 
@@ -10,6 +14,7 @@ Description: Estimate, summarize, and perform predictions with the market in
 License: GPL-3
 Encoding: UTF-8
 Imports: optimr, Formula, numDeriv
-Suggests: MASS
+Suggests: MASS, knitr, rmarkdown
 LazyData: true
-RoxygenNote: 6.1.1
+RoxygenNote: 7.0.2
+VignetteBuilder: knitr
