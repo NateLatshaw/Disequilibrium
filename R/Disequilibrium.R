@@ -15,8 +15,25 @@
 #'
 TransformSigma_PDtoR3 <- function(vec){
   vec[2] <- atanh(vec[2] / (sqrt(vec[1]) * sqrt(vec[3])))
+  vec[c(1,3)] = TransformSigma_PDtoR2(vec[c(1,3)])
+  return(vec)
+}
+
+#' TransformSigma_PDtoR2
+#'
+#' @param vec A length 2 vector of the variance of equation 1 followed by the variance of equation 2.
+#'
+#' @return A length 2 vector spanning unrestricted R2.
+#'
+#' @export
+#'
+#' @examples
+#'PD_vec <- c(1, 1)
+#'TransformSigma_PDtoR2(PD_vec)
+#'
+TransformSigma_PDtoR2 <- function(vec){
   vec[1] <- log(vec[1])
-  vec[3] <- log(vec[3])
+  vec[2] <- log(vec[2])
   return(vec)
 }
 
@@ -35,9 +52,27 @@ TransformSigma_PDtoR3 <- function(vec){
 #'TransformSigma_R3toPD(R3_vec)
 #'
 TransformSigma_R3toPD <- function(vec){
-  vec[1] <- exp(vec[1])
-  vec[3] <- exp(vec[3])
+  vec[c(1,3)] = TransformSigma_R2toPD(vec[c(1,3)])
   vec[2] <- tanh(vec[2]) * sqrt(vec[1]) * sqrt(vec[3])
+  return(vec)
+}
+
+#' TransformSigma_R2toPD
+#'
+#' @param vec A length 2 vector output from TransformSigma_PDtoR2.
+#'
+#' @return A length 2 vector of variances spanning a positive definite space.
+#'
+#' @export
+#'
+#' @examples
+#'PD_vec <- c(1, 1)
+#'R2_vec <- TransformSigma_PDtoR2(PD_vec)
+#'TransformSigma_R2toPD(R2_vec)
+#'
+TransformSigma_R2toPD <- function(vec){
+  vec[1] <- exp(vec[1])
+  vec[2] <- exp(vec[2])
   return(vec)
 }
 
@@ -131,7 +166,7 @@ DlhoodDatanhrho <- function(Y,mu,logsigma11,logsigma22,atanhrho){
 #'p2 = 2
 #'theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
 #'mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):(p1 + p2)])
-#'lhood = exp(-LLikelihoodDE(theta, Y, X, ensurePD = TRUE, summed = FALSE))
+#'lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
 #'
 #'d <- DllhoodDatanhrho(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1],
 #'    logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2], lhood = lhood)
@@ -235,7 +270,7 @@ DlhoodDlogsigma11 <- function(Y,mu,logsigma11,logsigma22,atanhrho){
 #'p2 = 2
 #'theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
 #'mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):(p1 + p2)])
-#'lhood = exp(-LLikelihoodDE(theta, Y, X, ensurePD = TRUE, summed = FALSE))
+#'lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
 #'
 #'d <- DllhoodDlogsigma11(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1],
 #'    logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2], lhood = lhood)
@@ -347,7 +382,7 @@ DlhoodDbeta1 <- function(Y,mu,logsigma11,logsigma22,atanhrho,X1){
 #'p2 = 2
 #'theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
 #'mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):(p1 + p2)])
-#'lhood = exp(-LLikelihoodDE(theta, Y, X, ensurePD = TRUE, summed = FALSE))
+#'lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
 #'
 #'d = DllhoodDbeta1(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1],
 #'    logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2], lhood = lhood, X1 = X1)
@@ -370,6 +405,9 @@ DllhoodDbeta1 <- function(Y,mu,logsigma11,logsigma22,atanhrho,lhood,X1){
 #' design matrix for equation 1 and the second element is a \eqn{N \times k_2}{N x k[2]}
 #' design matrix for equation 2.
 #' @param summed A logical to determine if gradient values are summed over observations.
+#' @param MaskRho A logical or numeric to determine if the correlation is masked.
+#' A value of FALSE means the correlation is not fixed. A value between -1 and 1 will fix the
+#' correlation to that value.
 #'
 #' @return A \eqn{(k_1 + k_2 + 3)}{(k[1] + k[2] + 3)} dimension vector of
 #' derivatives if \code{summed = TRUE}, else a
@@ -405,27 +443,39 @@ DllhoodDbeta1 <- function(Y,mu,logsigma11,logsigma22,atanhrho,lhood,X1){
 #'Gradient = GradientDE(theta, Y, X, summed = TRUE)
 #'head(Gradient)
 #'
-GradientDE <- function(theta, Y, X, summed = TRUE){
+GradientDE <- function(theta, Y, X, summed = TRUE, MaskRho = FALSE){
 
   p1 = ncol(X[[1]])
   p2 = ncol(X[[2]])
   p = p1 + p2
 
   # Set up parameters
-  mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):(p1 + p2)])
+  mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):p])
   logsigma11 = theta[p+1]
-  atanhrho = theta[p+2]
-  logsigma22 = theta[p+3]
+  if(isFALSE(MaskRho)){
+    atanhrho = theta[p+2]
+    logsigma22 = theta[p+3]
+  }else{
+    atanhrho = atanh(MaskRho)
+    logsigma22 = theta[p+2]
+  }
 
   # Precompute likelihood
-  lhood = exp(-LLikelihoodDE(theta, Y, X, ensurePD = TRUE, summed = FALSE))
+  lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE, MaskRho = MaskRho))
+
 
   gradvec = cbind(
     DllhoodDbeta1(Y,mu,logsigma11,logsigma22,atanhrho,lhood,X[[1]]),
     DllhoodDbeta1(Y,mu[,2:1],logsigma22,logsigma11,atanhrho,lhood,X[[2]]),
-    DllhoodDlogsigma11(Y,mu,logsigma11,logsigma22,atanhrho,lhood),
-    DllhoodDatanhrho(Y,mu,logsigma11,logsigma22,atanhrho,lhood),
-    DllhoodDlogsigma11(Y,mu[,2:1],logsigma22,logsigma11,atanhrho,lhood))
+    DllhoodDlogsigma11(Y,mu,logsigma11,logsigma22,atanhrho,lhood))
+  if(isFALSE(MaskRho)){
+    gradvec = cbind(gradvec,
+                    DllhoodDatanhrho(Y,mu,logsigma11,logsigma22,atanhrho,lhood))
+  }
+  gradvec = cbind(gradvec,
+                  DllhoodDlogsigma11(Y,mu[,2:1],logsigma22,logsigma11,atanhrho,lhood))
+
+
 
   if(summed){
     return(colSums(gradvec))
@@ -447,6 +497,9 @@ GradientDE <- function(theta, Y, X, summed = TRUE){
 #' design matrix for equation 1 and the second element is a \eqn{N \times k_2}{N x k[2]}
 #' design matrix for equation 2.
 #' @param summed A logical to determine if gradient values are summed over observations.
+#' @param MaskRho A logical or numeric to determine if the correlation is masked.
+#' A value of FALSE means the correlation is not fixed. A value between -1 and 1 will fix the
+#' correlation to that value.
 #'
 #' @return A \eqn{(k_1 + k_2 + 3)}{(k[1] + k[2] + 3)} dimension vector of
 #' derivatives if \code{summed = TRUE}, else a
@@ -483,8 +536,8 @@ GradientDE <- function(theta, Y, X, summed = TRUE){
 #'Gradient = nGradientDE(theta, Y, X, summed = TRUE)
 #'head(Gradient)
 #'
-nGradientDE <- function(theta, Y, X, summed = TRUE){
-  return(-GradientDE(theta, Y, X, summed = summed))
+nGradientDE <- function(theta, Y, X, summed = TRUE, MaskRho = FALSE){
+  return(-GradientDE(theta, Y, X, summed = summed, MaskRho = MaskRho))
 }
 
 
@@ -498,11 +551,14 @@ nGradientDE <- function(theta, Y, X, summed = TRUE){
 #' @param X A list of two elements. The first element is a \eqn{N \times k_1}{N x k[1]}
 #' design matrix for equation 1 and the second element is a \eqn{N \times k_2}{N x k[2]}
 #' design matrix for equation 2.
-#' @param ensurePD A logical  to determine if the covariance matrix is
-#' transformed to an unrestricted 3 dimension real space (\code{ensurePD = TRUE})
-#' or not (\code{ensurePD = FALSE}).
+#' @param transformR3toPD A logical  to determine if the covariance matrix is
+#' transformed to an unrestricted 3 dimension real space (\code{transformR3toPD = TRUE})
+#' or not (\code{transformR3toPD = FALSE}).
 #' @param summed A logical to determine if the negative log likelihood values
 #' are summed over observations.
+#' @param MaskRho A logical or numeric to determine if the correlation is masked.
+#' A value of FALSE means the correlation is not fixed. A value between -1 and 1 will fix the
+#' correlation to that value.
 #'
 #' @return A scalar value of the negative log likelihood if \code{summed = TRUE},
 #' else a \eqn{N}{N} length vector of negative log likelihood observations.
@@ -537,20 +593,33 @@ nGradientDE <- function(theta, Y, X, summed = TRUE){
 #'lhood = LLikelihoodDE(theta, Y, X, summed = TRUE)
 #'head(LLikelihoodDE)
 #'
-LLikelihoodDE <- function(theta, Y, X, ensurePD = TRUE, summed = TRUE){
+LLikelihoodDE <- function(theta, Y, X, transformR3toPD = TRUE, summed = TRUE, MaskRho = FALSE){
   p1 <- ncol(X[[1]])
   p2 <- ncol(X[[2]])
   p <- p1 + p2
   beta <- list(beta1 = theta[1:p1], beta2 = theta[(p1 + 1):p])
-  Sigma <- matrix(c(theta[p + 1], theta[p + 2], theta[p + 2], theta[p + 3]), 2, 2)
-
-  # convert covariance matrix to normal parameter space
-  if(ensurePD){
-    newSigma <- TransformSigma_R3toPD(c(Sigma[1, 1], Sigma[1, 2], Sigma[2, 2]))
-    Sigma[1, 1] <- newSigma[1]
-    Sigma[1, 2] <- newSigma[2]
-    Sigma[2, 1] <- Sigma[1, 2]
-    Sigma[2, 2] <- newSigma[3]
+  if(isFALSE(MaskRho)){
+    Sigma <- matrix(c(theta[p + 1], theta[p + 2],
+                      theta[p + 2], theta[p + 3]), 2, 2)
+    if(transformR3toPD){
+      newSigma <- TransformSigma_R3toPD(c(Sigma[1, 1], Sigma[1, 2], Sigma[2, 2]))
+      Sigma[1, 1] <- newSigma[1]
+      Sigma[1, 2] <- newSigma[2]
+      Sigma[2, 1] <- Sigma[1, 2]
+      Sigma[2, 2] <- newSigma[3]
+    }
+  }else{
+    if(transformR3toPD){
+      Sigma <- matrix(NA, 2, 2)
+      newSigma <- TransformSigma_R2toPD(theta[p+1:2])
+      Sigma[1, 1] <- newSigma[1]
+      Sigma[2, 2] <- newSigma[2]
+      Sigma[1, 2] <- MaskRho * sqrt(Sigma[1, 1]) * sqrt(Sigma[2, 2])
+      Sigma[2, 1] <- Sigma[1, 2]
+    }else{
+      Sigma <- matrix(c(theta[p + 1], MaskRho * sqrt(theta[p + 1]) * sqrt(theta[p + 2]),
+                        MaskRho * sqrt(theta[p + 1]) * sqrt(theta[p + 2]), theta[p + 2]), 2, 2)
+    }
   }
 
   # precomputation
@@ -572,10 +641,11 @@ LLikelihoodDE <- function(theta, Y, X, ensurePD = TRUE, summed = TRUE){
 
   llhood <- log(PrY)
   if(summed){
-    return(-sum(llhood))
+    out = -sum(llhood)
   } else {
-    return(-llhood)
+    out = -llhood
   }
+  return(out)
 }
 
 
@@ -684,12 +754,16 @@ LLikelihoodDE <- function(theta, Y, X, ensurePD = TRUE, summed = TRUE){
 #' \item{na.action}{A function indicating what happens when data contains NAs. The default is \link{na.omit}.
 #'  The only other possible value is \link{na.fail}.}
 #'
-#' \item{ensurePD}{A logical. If TRUE, the covariance matrix will be manually converted to a
+#' \item{transformR3toPD}{A logical. If TRUE, the covariance matrix will be manually converted to a
 #'  positive definite matrix for optimization. The default is TRUE.}
 #'
 #' \item{Equation1Name}{A string name for the first equation. The default is "_1".}
 #'
 #' \item{Equation2Name}{A string name for the second equation. The default is "_2".}
+#'
+#' \item{MaskRho}{A logical or numeric to determine if the correlation is masked.
+#' A value of FALSE means the correlation is not fixed. A value between -1 and 1 will fix the
+#' correlation to that value. The default is FALSE. A free correlation parameter can be numerically unstable, use with caution.}
 #'
 #'}
 #'
@@ -716,6 +790,8 @@ LLikelihoodDE <- function(theta, Y, X, ensurePD = TRUE, summed = TRUE){
 #' \item{betaN1}{The number of coefficient and slope parameters to be estimated in equation 1.}
 #'
 #' \item{betaN2}{The number of coefficient and slope parameters to be estimated in equation 2.}
+#'
+#' \item{MaskRho}{The value of MaskRho used.}
 #'
 #' }
 #'
@@ -746,7 +822,7 @@ LLikelihoodDE <- function(theta, Y, X, ensurePD = TRUE, summed = TRUE){
 #'Y1 = X1 %*% beta01 + eps1
 #'Y2 = X2 %*% beta02 + eps2
 #'Y = pmin(Y1,Y2)
-#'df = data.frame(Y = Y, X1 = X1, X2 = X2)
+#'df = data.frame(Y = Y, X1 = Xgen[,1], X2 = Xgen[,2])
 #'
 #'results = DE(formula = Y ~ X1 | X2, data = df)
 #'
@@ -800,19 +876,42 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
   if(!is.numeric(c(Y, X1, X2))){
     stop('variables in formula must be numeric')
   }
-  if(!is.null(par)){
-    if(length(par) != p + 3){
-      stop(paste0('par must be a vector of length equal to the number of free parameters (', p + 3, ')'))
+  if(is.null(control$MaskRho)){
+    control$MaskRho = FALSE
+  }else if(isTRUE(control$MaskRho)){
+    control$MaskRho = 0
+  }else if(is.numeric(control$MaskRho)){
+    if(abs(control$MaskRho) > 1){
+      stop("control$MaskRho must be unspecified, logical, or a numeric between -1 and 1")
     }
   }
+  if(!is.null(par)){
+    if(isFALSE(control$MaskRho)){
+      if(length(par) != p + 3){
+        stop(paste0('par must be a vector of length equal to the number of free parameters (', p + 3, ')'))
+      }
+    }else{
+      if(length(par) != p + 2){
+        stop(paste0('par must be a vector of length equal to the number of free parameters (', p + 2, ')'))
+      }
+    }
+  }
+
   if(!is.null(par) & !is.numeric(par)){
     stop('par must be a numeric vector')
   }
   if(!is.null(par)){
-    if((par[p + 1] <= 0) |
-       (par[p + 3] <= 0) |
-       (par[p + 3] - par[p + 2] / par[p + 1] < 0)){
-      stop('variance-covariance parameters in par must correspond to a positive definite matrix')
+    if(isFALSE(control$MaskRho)){
+      if((par[p + 1] <= 0) |
+         (par[p + 3] <= 0) |
+         (par[p + 3] - par[p + 2] / par[p + 1] < 0)){
+        stop('variance-covariance parameters in par must correspond to a positive definite matrix')
+      }
+    }else{
+      if((par[p + 1] <= 0) |
+         (par[p + 2] <= 0)){
+        stop('variance-covariance parameters in par must correspond to a positive definite matrix')
+      }
     }
   }
   if(!is.numeric(control$lower)){
@@ -834,18 +933,32 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
     control$Equation2Name <- '_2'
   }
 
-  # prep data
+  # prep parameters
   if(is.null(par)){
-    par <- c(rep(0, p), 1, 0, 1)
+    getintercept1 = which(apply(X1,2,function(x){length(unique(x))})==1)
+    getintercept2 = which(apply(X2,2,function(x){length(unique(x))})==1)
+    par <- c(rep(0, p), stats::var(Y), 0, stats::var(Y))
+    par[getintercept1] = mean(Y)
+    par[p1 + getintercept2] = mean(Y)
+    if(isFALSE(control$MaskRho)){
+      par[(p + 1):(p + 3)] <- TransformSigma_PDtoR3(par[(p + 1):(p + 3)])
+    }else{
+      par = par[-(p+2)]
+    }
+  }else{
+    par[(p + 1):(p + 2)] <- TransformSigma_PDtoR2(par[(p + 1):(p + 2)])
   }
-  par[(p + 1):(p + 3)] <- TransformSigma_PDtoR3(par[(p + 1):(p + 3)])
 
   # MLE
   out <- optimr::optimr(par = par, fn = LLikelihoodDE, gr = nGradientDE, lower = control$lower,
                         upper = control$upper,
                         method = control$method, hessian = control$hessian,
-                        X = list(X1, X2), Y = Y, control = control)
-  out$par[(p + 1):(p + 3)] <- TransformSigma_R3toPD(out$par[(p + 1):(p + 3)])
+                        X = list(X1, X2), Y = Y, MaskRho = control$MaskRho, control = control)
+  #out$par[(p + 1):(p + 3)] <- TransformSigma_R3toPD(out$par[(p + 1):(p + 3)])
+
+  if(out$convergence !=0){
+    warning("The optimization did not converge.")
+  }
 
   # create DE class
   class(out) <- c(class(out), 'DE')
@@ -853,12 +966,32 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
   attr(out, 'originalNamesX2') <- originalNamesX2
   attr(out, 'namesX1') <- paste0(originalNamesX1, control$Equation1Name)
   attr(out, 'namesX2') <- paste0(originalNamesX2, control$Equation2Name)
-  attr(out, 'namesSigma') <- c(paste0('Variance', control$Equation1Name), 'Covariance', paste0('Variance', control$Equation2Name))
+  if(isFALSE(control$MaskRho)){
+    attr(out, 'namesSigma') <- c(paste0('Variance', control$Equation1Name), 'Covariance', paste0('Variance', control$Equation2Name))
+  }else{
+    attr(out, 'namesSigma') <- c(paste0('Variance', control$Equation1Name), paste0('Variance', control$Equation2Name))
+  }
+
+  if(isFALSE(control$MaskRho)){
+    names(out$par) = c( paste0(originalNamesX1, control$Equation1Name),
+                        paste0(originalNamesX2, control$Equation2Name),
+                        paste0('logVariance', control$Equation1Name), 'atanhRho', paste0('logVariance', control$Equation2Name))
+  }else{
+    names(out$par) = c( paste0(originalNamesX1, control$Equation1Name),
+                        paste0(originalNamesX2, control$Equation2Name),
+                        paste0('logVariance', control$Equation1Name), paste0('logVariance', control$Equation2Name))
+  }
   attr(out, 'Equation1Name') <- control$Equation1Name
   attr(out, 'Equation2Name') <- control$Equation2Name
   attr(out, 'betaN1') <- p1
   attr(out, 'betaN2') <- p2
-  out$Sigma <- matrix(c(out$par[p + 1], out$par[p + 2], out$par[p + 2], out$par[p + 3]), nrow = 2, ncol = 2)
+  if(isFALSE(control$MaskRho)){
+    temp <- TransformSigma_R3toPD(out$par[(p + 1):(p + 3)])
+    out$Sigma = matrix(temp[c(1,2,2,3)],2,2)
+  }else{
+    temp <- TransformSigma_R2toPD(out$par[(p + 1):(p + 2)])
+    out$Sigma = matrix(c(temp[1],control$MaskRho,control$MaskRho,temp[2]),2,2)
+  }
   Xbeta1 <- X1 %*% matrix(out$par[1:p1], nrow = p1, ncol = 1)
   attributes(Xbeta1)$dimnames <- NULL
   out$Xbeta1 <- Xbeta1
@@ -866,7 +999,9 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
   attributes(Xbeta2)$dimnames <- NULL
   out$Xbeta2 <- Xbeta2
   out$hessian <- numDeriv::hessian(func = LLikelihoodDE, x = out$par,
-                                   X = list(X1, X2), Y = Y, ensurePD = FALSE)
+                                   X = list(X1, X2), Y = Y, MaskRho = control$MaskRho, transformR3toPD = TRUE)
+  dimnames(out$hessian)  = list(names(out$par),names(out$par))
+  out$MaskRho = control$MaskRho
   return(out)
 }
 
@@ -914,7 +1049,7 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
 #'Y1 = X1 %*% beta01 + eps1
 #'Y2 = X2 %*% beta02 + eps2
 #'Y = pmin(Y1,Y2)
-#'df = data.frame(Y = Y, X1 = X1, X2 = X2)
+#'df = data.frame(Y = Y, X1 = Xgen[,1], X2 = Xgen[,2])
 #'
 #'results = DE(formula = Y ~ X1 | X2, data = df)
 #'
@@ -925,9 +1060,36 @@ summary.DE <- function(object,...){
   if(is.null(dots$digits)){
     dots$digits <- max(3, getOption("digits") - 3)
   }
+  p1 = attr(object, 'betaN1')
+  p2 = attr(object, 'betaN2')
+  p = p1 + p2
   coeff <- object$par
+  if(isFALSE(object$MaskRho)){
+    coeff[p + 1:3] = TransformSigma_R3toPD(coeff[p + 1:3])
+  }else{
+    coeff[p + 1:2] = TransformSigma_R2toPD(coeff[p + 1:2])
+  }
   if(!is.null(object$hessian)){
-    se <- sqrt(diag(solve(object$hessian)))
+    covmat = solve(object$hessian)
+    # Multivariate to Multivariate delta method, Poirier(1995) Theorem 5.7.7
+    dgdtheta = matrix(0,nrow = nrow(covmat), ncol = ncol(covmat))
+    dgdtheta[cbind(1:p,1:p)] = 1
+    dgdtheta[p+1,p+1] = exp(object$par[p+1])
+    if(isFALSE(object$MaskRho)){
+      dgdtheta[p+2,p + 1:3] = c(
+        tanh(object$par[p+2]) * exp(object$par[p+1]) * exp(object$par[p+3]),
+        (cosh(object$par[p+2]) ^ (-2)) * exp(object$par[p+1]) * exp(object$par[p+3]),
+        tanh(object$par[p+2]) * exp(object$par[p+1]) * exp(object$par[p+3])
+      )
+      dgdtheta[p+3,p+3] = exp(object$par[p+3])
+    }else{
+      dgdtheta[p+2,p+2] = exp(object$par[p+2])
+    }
+
+    transcovmat =  dgdtheta %*% covmat %*% t(dgdtheta)
+
+    se <- sqrt(diag(transcovmat))
+
   } else {
     se <- rep(NA,length(coeff))
   }
@@ -986,7 +1148,7 @@ summary.DE <- function(object,...){
 #'Y1 = X1 %*% beta01 + eps1
 #'Y2 = X2 %*% beta02 + eps2
 #'Y = pmin(Y1,Y2)
-#'df = data.frame(Y = Y, X1 = X1, X2 = X2)
+#'df = data.frame(Y = Y, X1 = Xgen[,1], X2 = Xgen[,2])
 #'
 #'results = DE(formula = Y ~ X1 | X2, data = df)
 #'
@@ -1020,3 +1182,17 @@ predict.DE <- function(object, newdata = NULL,...){
 }
 
 
+#' @title Data from Fair and Jaffee (1972).
+#'
+#' @description
+#' A data set of 126 monthly observations of the housing market from June 1959 to November 1969. The variables are
+#'
+#' \eqn{T}: Time. A continuous values time variable
+#' \eqn{\sum_{i=1}^{t-1}HS_i}{\sum[i=1]^{t-1}HS[i]}: Stock of houses. A sum of housing starts over all previous periods. Assuming initial stock is 0.
+#' \eqn{RM_{t-2}}{RM[t-2]}: Mortgage rate lagged by two months.
+#' \eqn{DF6_{t-1}}{DF6[t-1]}: A six month moving average of $DF_t$. $DF_t$ is the flow of private deposits into savings and loan associations (SLA) and mutual savings banks during period $t$.
+#' \eqn{DHF3_{t-2}}{DHF3[t-2]}: The flow of borrowings by the SLAs from the federal home-loan bank during month t.
+#' \eqn{RM_{t-1}}{RM[t-1]}: Mortgage rate lagged by one month.
+#'
+#' @references Fair, Ray C., and Dwight M. Jaffee. "Methods of estimation for markets in disequilibrium." Econometrica: Journal of the Econometric Society (1972): 497-514.
+"fjdata"
