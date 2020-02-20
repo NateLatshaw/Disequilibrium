@@ -14,7 +14,7 @@ Description: Estimate, summarize, and perform predictions with the market in
 License: GPL-3
 Encoding: UTF-8
 Imports: optimr, Formula, numDeriv
-Suggests: MASS, knitr, rmarkdown
+Suggests: MASS, knitr, rmarkdown, sandwich
 LazyData: true
 RoxygenNote: 7.0.2
 VignetteBuilder: knitr
