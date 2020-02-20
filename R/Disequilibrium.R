@@ -76,6 +76,90 @@ TransformSigma_R2toPD <- function(vec){
   return(vec)
 }
 
+#' GetDeltaMethodParameters
+#'
+#' @description
+#'
+#' Transforms the mean and variance covariance matrix of the estimators in an unrestricted space to a positive definite space for the delta method.
+#'
+#' @param mu A numeric vector output from DE()$par
+#'
+#' @param covmat A numeric matrix output from DE()$vcov
+#'
+#' @param MaskRho The output from DE()$MaskRho
+#'
+#' @return The parameters of the normal distribution after transforming the coavariance variables to a positive definite space
+#'
+#' @export
+#'
+#' @examples
+#'GetDeltaMethodParameters
+GetDeltaMethodParameters <- function(mu,covmat = NULL,MaskRho = FALSE){
+
+  pall = length(mu)
+  if(isFALSE(MaskRho)){
+    p = pall - 3
+  }else{
+    p = pall - 2
+  }
+
+  transmu = mu
+  if(isFALSE(MaskRho)){
+    transmu[p + 1:3] = TransformSigma_R3toPD(mu[p + 1:3])
+  }else{
+    transmu[p + 1:2] = TransformSigma_R2toPD(mu[p + 1:2])
+  }
+
+  if(!is.null(names(mu))){
+    names(transmu) = names(mu)
+    if(isFALSE(MaskRho)){
+      names(transmu)[length(transmu)- c(2,0)] = gsub("log","",names(transmu)[length(transmu)- c(2,0)])
+      names(transmu)[length(transmu)- 1] = "Covariance"
+    }else{
+      names(transmu)[length(transmu)- c(1,0)] = gsub("log","",names(transmu)[length(transmu)- c(1,0)])
+    }
+  }
+
+
+  out = list(mu = transmu)
+
+  # Multivariate to Multivariate delta method, Poirier(1995) Theorem 5.7.7
+  if(!is.null(covmat)){
+    dgdtheta = matrix(0,nrow = pall, ncol = pall)
+    dgdtheta[cbind(1:p,1:p)] = 1
+    dgdtheta[p+1,p+1] = exp(mu[p+1])
+
+    if(isFALSE(MaskRho)){
+      dgdtheta[p+2,p + 1:3] = exp(sum(mu[p+c(1,3)])) *
+        c(
+         tanh(mu[p+2]),
+        (cosh(mu[p+2]) ^ (-2)),
+         tanh(mu[p+2])
+        )
+    }
+
+    dgdtheta[pall,pall] = exp(mu[pall])
+
+    transcovmat =  dgdtheta %*% covmat %*% t(dgdtheta)
+    out$covmat = transcovmat
+
+    if(!is.null(dimnames(covmat))){
+      dimnames(out$covmat) = dimnames(covmat)
+      if(isFALSE(MaskRho)){
+        colnames(out$covmat)[nrow(out$covmat)- c(2,0)] = gsub("log","",colnames(out$covmat)[nrow(out$covmat)- c(2,0)])
+        colnames(out$covmat)[nrow(out$covmat)- 1] = "Covariance"
+      }else{
+        colnames(out$covmat)[nrow(out$covmat)- c(1,0)] = gsub("log","",colnames(out$covmat)[nrow(out$covmat)- c(1,0)])
+      }
+      rownames(out$covmat) = colnames(out$covmat)
+    }
+
+  }
+
+  return(out)
+
+}
+
 #' Derivative of likelihood with respect to the inverse hyperbolic tangent of correlation
 #'
 #' @param Y A vector of observed responses.
@@ -166,7 +250,7 @@ DlhoodDatanhrho <- function(Y,mu,logsigma11,logsigma22,atanhrho){
 #'p2 = 2
 #'theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
 #'mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):(p1 + p2)])
-#'lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
+#'lhood = exp(-nLLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
 #'
 #'d <- DllhoodDatanhrho(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1],
 #'    logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2], lhood = lhood)
@@ -270,7 +354,7 @@ DlhoodDlogsigma11 <- function(Y,mu,logsigma11,logsigma22,atanhrho){
 #'p2 = 2
 #'theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
 #'mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):(p1 + p2)])
-#'lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
+#'lhood = exp(-nLLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
 #'
 #'d <- DllhoodDlogsigma11(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1],
 #'    logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2], lhood = lhood)
@@ -382,7 +466,7 @@ DlhoodDbeta1 <- function(Y,mu,logsigma11,logsigma22,atanhrho,X1){
 #'p2 = 2
 #'theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
 #'mu = cbind(X[[1]] %*% theta[1:p1], X[[2]] %*% theta[(p1 + 1):(p1 + p2)])
-#'lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
+#'lhood = exp(-nLLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE))
 #'
 #'d = DllhoodDbeta1(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1],
 #'    logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2], lhood = lhood, X1 = X1)
@@ -461,7 +545,7 @@ GradientDE <- function(theta, Y, X, summed = TRUE, MaskRho = FALSE){
   }
 
   # Precompute likelihood
-  lhood = exp(-LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE, MaskRho = MaskRho))
+  lhood = exp(-nLLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = FALSE, MaskRho = MaskRho))
 
 
   gradvec = cbind(
@@ -475,7 +559,9 @@ GradientDE <- function(theta, Y, X, summed = TRUE, MaskRho = FALSE){
   gradvec = cbind(gradvec,
                   DllhoodDlogsigma11(Y,mu[,2:1],logsigma22,logsigma11,atanhrho,lhood))
 
-
+  if(!is.null(names(theta))){
+    colnames(gradvec) = names(theta)
+  }
 
   if(summed){
     return(colSums(gradvec))
@@ -542,6 +628,48 @@ nGradientDE <- function(theta, Y, X, summed = TRUE, MaskRho = FALSE){
 
 
 #' Negative log likelihood of market in disequilibrium model
+#'
+#' @description A wrapper function that makes the output of LLikelihoodDE negative.
+#' See ?LLikelihoodDE for details.
+#'
+#' @param ... arguements to be passed to LLikelhoodDE
+#' @export
+#'
+#' @examples
+#'set.seed(1775)
+#'library(MASS)
+#'beta01 = c(1,1)
+#'beta02 = c(-1,-1)
+#'N = 10000
+#'SigmaEps = diag(2)
+#'SigmaX = diag(2)
+#'MuX = c(0,0)
+#'par0 = c(beta01, beta02, SigmaX[1, 1], SigmaX[1, 2], SigmaX[2, 2])
+#'
+#'Xgen = mvrnorm(N,MuX,SigmaX)
+#'X1 = cbind(1,Xgen[,1])
+#'X2 = cbind(1,Xgen[,2])
+#'X = list(X1 = X1,X2 = X2)
+#'eps = mvrnorm(N,c(0,0),SigmaEps)
+#'eps1 = eps[,1]
+#'eps2 = eps[,2]
+#'Y1 = X1 %*% beta01 + eps1
+#'Y2 = X2 %*% beta02 + eps2
+#'Y = pmin(Y1,Y2)
+#'
+#'p1 = 2
+#'p2 = 2
+#'theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
+#'
+#'lhood = nLLikelihoodDE(theta, Y, X, summed = TRUE)
+#'head(nLLikelihoodDE)
+#'
+nLLikelihoodDE <- function(...){
+  return(-LLikelihoodDE(...))
+}
+
+
+#' Log likelihood of market in disequilibrium model
 #'
 #' @param theta A vector of parameter values to obtain the gradient at. The
 #' order of parameters is coefficients of equation 1, coefficients of equation 2,
@@ -641,13 +769,12 @@ LLikelihoodDE <- function(theta, Y, X, transformR3toPD = TRUE, summed = TRUE, Ma
 
   llhood <- log(PrY)
   if(summed){
-    out = -sum(llhood)
+    out = sum(llhood)
   } else {
-    out = -llhood
+    out = llhood
   }
   return(out)
 }
-
 
 #' @title Market in Disequilibrium Model
 #'
@@ -717,8 +844,42 @@ LLikelihoodDE <- function(theta, Y, X, transformR3toPD = TRUE, summed = TRUE, Ma
 #'
 #' \item{Xbeta2}{The predicted outcome for each observation in equation 2 using the parameters estimated in \code{par}.}
 #'
+#' \item{Y}{A vector of the response (quantity) values.}
+#'
+#' \item{X}{A list of the design matricies for the two equations.}
+#'
 #' \item{hessian}{A numerical approximation to the Hessian matrix of the likelihood function at the estimated parameter values.
 #'  The Hessian is returned even if it is not requested.}
+#'
+#' \item{vcov}{The variance covariance matrix of the estimates in \code{par}.}
+#'
+#' \item{MaskRho}{The value of \code{MaskRho} used.}
+#'
+#' }
+#'
+#' The object of class 'DE' has the following attributes:
+#'
+#' \describe{
+#'
+#' \item{originalNamesX1}{The original names of the covariates for equation 1 specified in \code{formula}.}
+#'
+#' \item{originalNamesX2}{The original names of the covariates for equation 2 specified in \code{formula}.}
+#'
+#' \item{namesX1}{The names of the covariates for equation 1 to be used in the \code{summary.DE} function.
+#'  This is equivalent to \code{paste0(originalNamesX1, Equation1Name)}.}
+#'
+#' \item{namesX2}{The names of the covariates for equation 2 to be used in the \code{summary.DE} function.
+#'  This is equivalent to \code{paste0(originalNamesX2, Equation2Name)}.}
+#'
+#' \item{namesSigma}{The names of the variance-covariance matrix parameters to be used in the \code{summary.DE} function.}
+#'
+#' \item{Equation1Name}{The user-specified name of equation 1.}
+#'
+#' \item{Equation2Name}{The user-specified name of equation 2.}
+#'
+#' \item{betaN1}{The number of coefficient and slope parameters to be estimated in equation 1.}
+#'
+#' \item{betaN2}{The number of coefficient and slope parameters to be estimated in equation 2.}
 #'
 #' }
 #'
@@ -767,33 +928,6 @@ LLikelihoodDE <- function(theta, Y, X, transformR3toPD = TRUE, summed = TRUE, Ma
 #'
 #'}
 #'
-#' An object of class 'DE' is returned as a list with the following attributes:
-#'
-#' \describe{
-#'
-#' \item{originalNamesX1}{The original names of the covariates for equation 1 specified in \code{formula}.}
-#'
-#' \item{originalNamesX2}{The original names of the covariates for equation 2 specified in \code{formula}.}
-#'
-#' \item{namesX1}{The names of the covariates for equation 1 to be used in the \code{summary.DE} function.
-#'  This is equivalent to \code{paste0(originalNamesX1, Equation1Name)}.}
-#'
-#' \item{namesX2}{The names of the covariates for equation 2 to be used in the \code{summary.DE} function.
-#'  This is equivalent to \code{paste0(originalNamesX2, Equation2Name)}.}
-#'
-#' \item{namesSigma}{The names of the variance-covariance matrix parameters to be used in the \code{summary.DE} function.}
-#'
-#' \item{Equation1Name}{The user-specified name of equation 1.}
-#'
-#' \item{Equation2Name}{The user-specified name of equation 2.}
-#'
-#' \item{betaN1}{The number of coefficient and slope parameters to be estimated in equation 1.}
-#'
-#' \item{betaN2}{The number of coefficient and slope parameters to be estimated in equation 2.}
-#'
-#' \item{MaskRho}{The value of MaskRho used.}
-#'
-#' }
 #'
 #'
 #' @references
@@ -950,7 +1084,7 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
   }
 
   # MLE
-  out <- optimr::optimr(par = par, fn = LLikelihoodDE, gr = nGradientDE, lower = control$lower,
+  out <- optimr::optimr(par = par, fn = nLLikelihoodDE, gr = nGradientDE, lower = control$lower,
                         upper = control$upper,
                         method = control$method, hessian = control$hessian,
                         X = list(X1, X2), Y = Y, MaskRho = control$MaskRho, control = control)
@@ -998,9 +1132,14 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
   Xbeta2 <- X2 %*% matrix(out$par[(p1 + 1):(p1 + p2)], nrow = p2, ncol = 1)
   attributes(Xbeta2)$dimnames <- NULL
   out$Xbeta2 <- Xbeta2
-  out$hessian <- numDeriv::hessian(func = LLikelihoodDE, x = out$par,
+  out$Y = Y
+  out$X = list(X1, X2)
+  names(out$X) = c(control$Equation1Name, control$Equation2Name)
+  out$hessian <- numDeriv::hessian(func = nLLikelihoodDE, x = out$par,
                                    X = list(X1, X2), Y = Y, MaskRho = control$MaskRho, transformR3toPD = TRUE)
   dimnames(out$hessian)  = list(names(out$par),names(out$par))
+  out$vcov = tryCatch(expr = chol2inv(chol(out$hessian)), error = function(x){matrix(NA,length(out$par),length(out$par))})
+  dimnames(out$vcov) = list(names(out$par),names(out$par))
   out$MaskRho = control$MaskRho
   return(out)
 }
@@ -1008,6 +1147,7 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
 #' @title Summary method for class 'DE'
 #'
 #' @param object An object of class \code{DE} for which a summary is desired.
+#' @param robust A logical determining if robust standard errors should be used. If true standard errors are from sandwich::sandwich, else hessian.
 #' @param ... Unused
 #'
 #' @return
@@ -1055,46 +1195,36 @@ DE <- function(formula, data, subset = NULL, par = NULL, control = list()){
 #'
 #'summary(results)
 #'
-summary.DE <- function(object,...){
+summary.DE <- function(object,robust = FALSE,...){
   dots <- match.call(expand.dots = TRUE)
   if(is.null(dots$digits)){
     dots$digits <- max(3, getOption("digits") - 3)
   }
-  p1 = attr(object, 'betaN1')
-  p2 = attr(object, 'betaN2')
-  p = p1 + p2
-  coeff <- object$par
-  if(isFALSE(object$MaskRho)){
-    coeff[p + 1:3] = TransformSigma_R3toPD(coeff[p + 1:3])
-  }else{
-    coeff[p + 1:2] = TransformSigma_R2toPD(coeff[p + 1:2])
-  }
-  if(!is.null(object$hessian)){
-    covmat = solve(object$hessian)
-    # Multivariate to Multivariate delta method, Poirier(1995) Theorem 5.7.7
-    dgdtheta = matrix(0,nrow = nrow(covmat), ncol = ncol(covmat))
-    dgdtheta[cbind(1:p,1:p)] = 1
-    dgdtheta[p+1,p+1] = exp(object$par[p+1])
-    if(isFALSE(object$MaskRho)){
-      dgdtheta[p+2,p + 1:3] = c(
-        tanh(object$par[p+2]) * exp(object$par[p+1]) * exp(object$par[p+3]),
-        (cosh(object$par[p+2]) ^ (-2)) * exp(object$par[p+1]) * exp(object$par[p+3]),
-        tanh(object$par[p+2]) * exp(object$par[p+1]) * exp(object$par[p+3])
-      )
-      dgdtheta[p+3,p+3] = exp(object$par[p+3])
-    }else{
-      dgdtheta[p+2,p+2] = exp(object$par[p+2])
+
+  if(!any(is.na(object$vcov))){
+    deltamethpar = GetDeltaMethodParameters(object$par,object$vcov)
+    transcovmat = deltamethpar$covmat
+
+    if(isFALSE(robust)){
+      transcovmat = sandwich::sandwich(object)
     }
 
-    transcovmat =  dgdtheta %*% covmat %*% t(dgdtheta)
 
     se <- sqrt(diag(transcovmat))
-
-  } else {
+  }else{
+    deltamethpar = GetDeltaMethodParameters(object$par)
     se <- rep(NA,length(coeff))
   }
+
+
+  coeff = deltamethpar$mu
   zstat <- abs(coeff / se)
   pval <- stats::pnorm(zstat, lower.tail = FALSE) * 2
+  if(isFALSE(object$MaskRho)){
+    pval[length(pval) - c(0,2)] = NA
+  }else{
+    pval[length(pval) - c(0,1)] = NA
+  }
   out <- cbind(coeff, se, zstat, pval)
   colnames(out) <- c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')
   rownames(out) <- c(attr(object, 'namesX1'), attr(object, 'namesX2'), attr(object, 'namesSigma'))
@@ -1121,7 +1251,7 @@ summary.DE <- function(object,...){
 #' \item{Min(Y_1,Y_2)}{The minimum of \code{Y_1} and \code{Y_2}.}
 #'
 #' \item{Prob(Y_2>Y_1)}{The probability that the outcome variable in equation 2 is greater than the outcome
-#' variable in equation 1.  This is the probability that \code{Y_1} is the observed quantity.}
+#' variable in equation 1.  This is the probability that \code{Y_1} is the observed quantity. This probability does not account for estimation uncertainty. Also note that all predictions are unconditional on the observed quantity.}
 #'
 #' }
 #'
@@ -1181,6 +1311,193 @@ predict.DE <- function(object, newdata = NULL,...){
   return(out)
 }
 
+#' @title estfun method for class 'DE'
+#'
+#' @param x An object of class \code{DE}.
+#' @param ... Unused
+#'
+#' @return
+#' A \eqn{N \times (k_1 + k_2 + 3)}{N x (k[1] + k[2] + 3)} if rho is not masked (otherwise \eqn{N \times (k_1 + k_2 + 2)}{N x (k[1] + k[2] + 2)}) matrix of the gradient is returned.
+#'
+#' @export
+#'
+#'
+#'
+#' @examples
+#'set.seed(1775)
+#'library(MASS)
+#'beta01 = c(1,1)
+#'beta02 = c(-1,-1)
+#'N = 10000
+#'SigmaEps = diag(2)
+#'SigmaX = diag(2)
+#'MuX = c(0,0)
+#'par0 = c(beta01, beta02, SigmaX[1, 1], SigmaX[1, 2], SigmaX[2, 2])
+#'
+#'Xgen = mvrnorm(N,MuX,SigmaX)
+#'X1 = cbind(1,Xgen[,1])
+#'X2 = cbind(1,Xgen[,2])
+#'X = list(X1 = X1,X2 = X2)
+#'eps = mvrnorm(N,c(0,0),SigmaEps)
+#'eps1 = eps[,1]
+#'eps2 = eps[,2]
+#'Y1 = X1 %*% beta01 + eps1
+#'Y2 = X2 %*% beta02 + eps2
+#'Y = pmin(Y1,Y2)
+#'df = data.frame(Y = Y, X1 = Xgen[,1], X2 = Xgen[,2])
+#'
+#'results = DE(formula = Y ~ X1 | X2, data = df)
+#'
+#'head(sandwich::estfun(results))
+#'
+estfun.DE <- function(x, ...){
+
+  out =  GradientDE(theta = x$par,Y = x$Y, X = x$X , summed = FALSE, MaskRho = x$MaskRho)
+
+ return(out)
+
+}
+
+#' @title vcov method for class 'DE'
+#'
+#' @param object An object of class \code{DE}.
+#' @param ... Unused
+#'
+#' @return
+#' A \eqn{N \times (k_1 + k_2 + 3)}{N x (k[1] + k[2] + 3)} if matrix of the gradient is returned.
+#'
+#' @export
+#'
+#'
+#'
+#' @examples
+#'set.seed(1775)
+#'library(MASS)
+#'beta01 = c(1,1)
+#'beta02 = c(-1,-1)
+#'N = 10000
+#'SigmaEps = diag(2)
+#'SigmaX = diag(2)
+#'MuX = c(0,0)
+#'par0 = c(beta01, beta02, SigmaX[1, 1], SigmaX[1, 2], SigmaX[2, 2])
+#'
+#'Xgen = mvrnorm(N,MuX,SigmaX)
+#'X1 = cbind(1,Xgen[,1])
+#'X2 = cbind(1,Xgen[,2])
+#'X = list(X1 = X1,X2 = X2)
+#'eps = mvrnorm(N,c(0,0),SigmaEps)
+#'eps1 = eps[,1]
+#'eps2 = eps[,2]
+#'Y1 = X1 %*% beta01 + eps1
+#'Y2 = X2 %*% beta02 + eps2
+#'Y = pmin(Y1,Y2)
+#'df = data.frame(Y = Y, X1 = Xgen[,1], X2 = Xgen[,2])
+#'
+#'results = DE(formula = Y ~ X1 | X2, data = df)
+#'
+#'vcov(results)
+#'
+vcov.DE <- function(object, ...){
+
+  out =  object$vcov
+
+  return(out)
+
+}
+
+#' @title nobs method for class 'DE'
+#'
+#' @param object An object of class \code{DE}.
+#' @param ... Unused
+#'
+#' @return
+#' A scalar representing the number of observations \eqn{N}{N}.
+#'
+#' @export
+#'
+#'
+#'
+#' @examples
+#'set.seed(1775)
+#'library(MASS)
+#'beta01 = c(1,1)
+#'beta02 = c(-1,-1)
+#'N = 10000
+#'SigmaEps = diag(2)
+#'SigmaX = diag(2)
+#'MuX = c(0,0)
+#'par0 = c(beta01, beta02, SigmaX[1, 1], SigmaX[1, 2], SigmaX[2, 2])
+#'
+#'Xgen = mvrnorm(N,MuX,SigmaX)
+#'X1 = cbind(1,Xgen[,1])
+#'X2 = cbind(1,Xgen[,2])
+#'X = list(X1 = X1,X2 = X2)
+#'eps = mvrnorm(N,c(0,0),SigmaEps)
+#'eps1 = eps[,1]
+#'eps2 = eps[,2]
+#'Y1 = X1 %*% beta01 + eps1
+#'Y2 = X2 %*% beta02 + eps2
+#'Y = pmin(Y1,Y2)
+#'df = data.frame(Y = Y, X1 = Xgen[,1], X2 = Xgen[,2])
+#'
+#'results = DE(formula = Y ~ X1 | X2, data = df)
+#'
+#'nobs(results)
+#'
+nobs.DE <- function(object, ...){
+
+  out =  length(object$Y)
+
+  return(out)
+
+}
+
+#' @title residuals method for class 'DE'
+#'
+#' @param object An object of class \code{DE}.
+#' @param ... Unused
+#'
+#' @return
+#' A 2 dimension matrix of raw residuals for equations 1 and 2. Allows use with Sandwich package.
+#'
+#' @export
+#'
+#'
+#' @examples
+#'set.seed(1775)
+#'library(MASS)
+#'beta01 = c(1,1)
+#'beta02 = c(-1,-1)
+#'N = 10000
+#'SigmaEps = diag(2)
+#'SigmaX = diag(2)
+#'MuX = c(0,0)
+#'par0 = c(beta01, beta02, SigmaX[1, 1], SigmaX[1, 2], SigmaX[2, 2])
+#'
+#'Xgen = mvrnorm(N,MuX,SigmaX)
+#'X1 = cbind(1,Xgen[,1])
+#'X2 = cbind(1,Xgen[,2])
+#'X = list(X1 = X1,X2 = X2)
+#'eps = mvrnorm(N,c(0,0),SigmaEps)
+#'eps1 = eps[,1]
+#'eps2 = eps[,2]
+#'Y1 = X1 %*% beta01 + eps1
+#'Y2 = X2 %*% beta02 + eps2
+#'Y = pmin(Y1,Y2)
+#'df = data.frame(Y = Y, X1 = Xgen[,1], X2 = Xgen[,2])
+#'
+#'results = DE(formula = Y ~ X1 | X2, data = df)
+#'
+#'head(residuals(results))
+#'
+residuals.DE <- function(object, ...){
+
+  out =  cbind(object$Y - object$XBeta1, object$Y - object$XBeta2)
+  colnames(out) = names(object$X)
+
+  return(out)
+
+}
 
 #' @title Data from Fair and Jaffee (1972).
 #'
@@ -1196,3 +1513,4 @@ predict.DE <- function(object, newdata = NULL,...){
 #'
 #' @references Fair, Ray C., and Dwight M. Jaffee. "Methods of estimation for markets in disequilibrium." Econometrica: Journal of the Econometric Society (1972): 497-514.
 "fjdata"
+
