@@ -19,9 +19,7 @@ knitr::opts_chunk$set(
 
 ## Introduction
 
-Disequilibrium provides the user functions to estimate, summarize, and produce predictions for the market in disequilibrium model as found in Gourieroux, C. (2000) <doi:10.1017/CBO9780511805608> and Maddala, G. (1983) <doi:10.1017/CBO9780511810176>.
-
-The first study on a market in disequilibrium was Fair and Jaffee (1972) studying the supply and demand of housing starts. Soon followed many econometric refinements and extension. See Maddala and Nelson for correct Full Information Maximum Likelihood (FIML) estimators for four Disequilblirium models. This package currently supports estimating the first model. There are many other interesting papers about Disequilibrium models that are out of scope for this vignette . A few good summaries of the literature are Maddala (1983) and Gourieroux (2000). Calling these models "Disequilibrium" models is a bit of a misnomer, they might be better named "Non-market clearing" models (Citations). The specific model implemented in this package is not  implemented in any other package currently on CRAN to the best knowledge of the authors.However, there are other packages to implement similar models such as sampleSelection, censReg, AER, and MCMCpack. Call
+The first study on a market in disequilibrium was Fair and Jaffee (1972) studying the supply and demand of housing starts. Soon followed many econometric refinements and extensions to the new field of disequilibrium econometrics (see the bibliography for small list).^[Calling this "Disequilibrium" econometrics is a bit of a misnomer. These models model the lack of market clearing condition. A market can not clear (i.e., supply does not equal demand) and still be in equilibrium or disequilibrium (Hendry, 1982).] Two good summaries of the literature are Maddala (1983) and Gourieroux (2000). Maddala and Nelson (1974) present Full Information Maximum Likelihood (FIML) estimators for four Disequilblirium models. This package currently supports estimating the first model. The model implemented in this package is not implemented in any other package currently on CRAN to the best knowledge of the authors. However, there are other packages to implement similar models such as sampleSelection, censReg, AER, and MCMCpack.
 
 The market in disequilibrium model is defined as follows.
 Let $i$ denote the $i$th observation which takes values from $1$
@@ -231,6 +229,8 @@ Freedman, David A. "On the so-called “Huber sandwich estimator” and “robus
 Goldfeld, Stephen M., and Richard E. Quandt. "Some properties of the simple disequilibrium model with covariance." Economics Letters 1.4 (1978): 343-346.
 
 Gourieroux, Christian. Econometrics of qualitative dependent variables. Cambridge university press, 2000.
+
+Hendry, David F. "Comment whither disequilibrium econometrics?." (1982): 65-70.
 
 Laroque, Guy, and Bernard Salanié. "Estimating the canonical disequilibrium model: Asymptotic theory and finite sample properties." Journal of Econometrics 62.2 (1994): 165-210.
 
