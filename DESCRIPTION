@@ -1,7 +1,7 @@
 Package: Disequilibrium
 Type: Package
 Title: Disequilibrium Models
-Version: 1.1
+Version: 1.2
 Authors@R: c(person("Nate", "Latshaw", role = c("aut", "cre"), email = "dcms2015@gmail.com"),
              person("Michael", "Guggisberg", role = "aut", email = "mikeguggis@gmail.com"),
              person("Institute for Defense Analyses", role = "cph"))
