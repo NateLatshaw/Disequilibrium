@@ -1,7 +1,7 @@
 Package: Disequilibrium
 Type: Package
 Title: Disequilibrium Models
-Version: 1.0
+Version: 1.1
 Author: Nate Latshaw [aut, cre], Michael Guggisberg [aut]
 Maintainer: Nate Latshaw <dcms2015@gmail.com>
 Description: Estimate, summarize, and perform predictions with the market in 
