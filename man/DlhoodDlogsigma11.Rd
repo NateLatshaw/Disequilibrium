@@ -50,7 +50,8 @@ p2 = 2
 theta = c(beta01, beta02, log(SigmaX[1, 1]), atanh(SigmaX[1, 2]), log(SigmaX[2, 2]))
 mu = cbind(X[[1]] \%*\% theta[1:p1], X[[2]] \%*\% theta[(p1 + 1):(p1 + p2)])
 
-Derivatives = DlhoodDlogsigma11(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1], logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2])
-head(Derivatives)
+d = DlhoodDlogsigma11(Y = Y, mu = mu, logsigma11 = theta[p1 + p2 + 1],
+   logsigma22 = theta[p1 + p2 + 3], atanhrho = theta[p1 + p2 + 2])
+head(d)
 
 }
