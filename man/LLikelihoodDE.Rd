@@ -4,14 +4,8 @@
 \alias{LLikelihoodDE}
 \title{Log likelihood of market in disequilibrium model}
 \usage{
-LLikelihoodDE(
-  theta,
-  Y,
-  X,
-  transformR3toPD = TRUE,
-  summed = TRUE,
-  MaskRho = FALSE
-)
+LLikelihoodDE(theta, Y, X, transformR3toPD = TRUE, summed = TRUE,
+  MaskRho = FALSE)
 }
 \arguments{
 \item{theta}{A vector of parameter values to obtain the gradient at. The

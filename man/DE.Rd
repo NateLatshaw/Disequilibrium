@@ -184,7 +184,7 @@ str(results)
 
 }
 \references{
-\cite{Gourieroux, C. (2000). Econometrics of Qualitative Dependent Variables (Themes in Modern Econometrics) (P. Klassen, Trans.). Cambridge: Cambridge University Press. doi:10.1017/CBO9780511805608}
+\cite{Gourieroux, C. (2000). Econometrics of Qualitative Dependent Variables (Themes in Modern Econometrics) (P. Klassen, Trans.). Cambridge: Cambridge University Press. http://doi.org/10.1017/CBO9780511805608}
 
-\cite{Maddala, G. (1983). Limited-Dependent and Qualitative Variables in Econometrics (Econometric Society Monographs). Cambridge: Cambridge University Press. doi:10.1017/CBO9780511810176}
+\cite{Maddala, G. (1983). Limited-Dependent and Qualitative Variables in Econometrics (Econometric Society Monographs). Cambridge: Cambridge University Press. http://doi.org/10.1017/CBO9780511810176}
 }
